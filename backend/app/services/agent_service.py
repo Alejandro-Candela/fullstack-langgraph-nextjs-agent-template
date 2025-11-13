@@ -85,8 +85,8 @@ async def _ensure_agent(
     if tools and len(tools) > 0:
         mcp_tools = [t for t in mcp_tools if t.name in tools]
     
-    # Get checkpointer
-    checkpointer = get_checkpointer()
+    # Get async checkpointer
+    checkpointer = await get_checkpointer()
     
     # Build agent
     builder = AgentBuilder(

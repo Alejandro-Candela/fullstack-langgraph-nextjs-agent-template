@@ -1,6 +1,8 @@
 """FastAPI application entry point."""
 
 import logging
+import sys
+import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -10,6 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import init_db
 from app.routers import agent, threads, mcp_servers
+
+# Fix para Windows: usar SelectorEventLoop para compatibilidad con psycopg async
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # Configure logging
 logging.basicConfig(

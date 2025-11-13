@@ -1,60 +1,83 @@
 """Memory and checkpointing for LangGraph agent."""
 
 import logging
+import sys
+import asyncio
 from typing import List, Optional
 
 from langchain_core.messages import BaseMessage
-from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from psycopg_pool import AsyncConnectionPool
 
 from app.config import settings
 
+# Fix para Windows: usar SelectorEventLoop para compatibilidad con psycopg async
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 logger = logging.getLogger(__name__)
 
-# Global checkpointer instance
-_checkpointer: Optional[PostgresSaver] = None
+# Global connection pool for async checkpointer
+_connection_pool: Optional[AsyncConnectionPool] = None
+_checkpointer: Optional[AsyncPostgresSaver] = None
 
 
-def create_postgres_checkpointer() -> PostgresSaver:
-    """
-    Create a PostgresSaver instance using environment variables.
-    
-    Returns:
-        PostgresSaver instance for agent state persistence.
-    """
+def get_connection_string() -> str:
+    """Get the PostgreSQL connection string for psycopg."""
     connection_string = settings.database_url_with_ssl
     
-    # LangGraph PostgresSaver uses psycopg (sync), not asyncpg
     # Convert asyncpg URL back to standard postgresql://
     if connection_string.startswith("postgresql+asyncpg://"):
         connection_string = connection_string.replace("postgresql+asyncpg://", "postgresql://", 1)
     
-    # Create the checkpointer
-    # from_conn_string returns the checkpointer directly (not a context manager in recent versions)
-    checkpointer = PostgresSaver.from_conn_string(connection_string)
+    return connection_string
+
+
+async def create_postgres_checkpointer() -> AsyncPostgresSaver:
+    """
+    Create an AsyncPostgresSaver instance using a connection pool.
     
-    logger.info(f"PostgreSQL checkpointer created: {type(checkpointer)}")
+    Returns:
+        AsyncPostgresSaver instance for agent state persistence.
+    """
+    global _connection_pool
     
-    # Try to setup if the method exists
-    if hasattr(checkpointer, 'setup') and callable(checkpointer.setup):
-        try:
-            checkpointer.setup()
-            logger.info("PostgreSQL checkpointer setup completed")
-        except Exception as e:
-            logger.warning(f"Checkpointer setup failed (may be auto-setup): {e}")
+    connection_string = get_connection_string()
+    
+    # Create an async connection pool if it doesn't exist
+    if _connection_pool is None:
+        _connection_pool = AsyncConnectionPool(
+            conninfo=connection_string,
+            min_size=1,
+            max_size=10,
+            kwargs={"autocommit": True},  # Required for CREATE INDEX CONCURRENTLY
+        )
+        await _connection_pool.open()
+        logger.info("PostgreSQL async connection pool created")
+    
+    # Create async checkpointer with the pool
+    checkpointer = AsyncPostgresSaver(_connection_pool)
+    
+    # Setup creates the necessary tables
+    try:
+        await checkpointer.setup()
+        logger.info("PostgreSQL async checkpointer initialized and setup completed")
+    except Exception as e:
+        logger.warning(f"Checkpointer setup warning (may already exist): {e}")
     
     return checkpointer
 
 
-def get_checkpointer() -> PostgresSaver:
+async def get_checkpointer() -> AsyncPostgresSaver:
     """
-    Get or create the global checkpointer instance.
+    Get or create the global async checkpointer instance.
     
     Returns:
-        Global PostgresSaver instance.
+        Global AsyncPostgresSaver instance.
     """
     global _checkpointer
     if _checkpointer is None:
-        _checkpointer = create_postgres_checkpointer()
+        _checkpointer = await create_postgres_checkpointer()
     return _checkpointer
 
 
@@ -69,10 +92,10 @@ async def get_history(thread_id: str) -> List[BaseMessage]:
         List of messages associated with the thread.
     """
     try:
-        checkpointer = get_checkpointer()
+        checkpointer = await get_checkpointer()
         
-        # Get the latest checkpoint for this thread
-        checkpoint = checkpointer.get({"configurable": {"thread_id": thread_id}})
+        # Get the latest checkpoint for this thread (using async method)
+        checkpoint = await checkpointer.aget({"configurable": {"thread_id": thread_id}})
         
         if checkpoint and "channel_values" in checkpoint:
             messages = checkpoint["channel_values"].get("messages", [])
