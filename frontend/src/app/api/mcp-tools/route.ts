@@ -1,47 +1,57 @@
 import { NextResponse } from "next/server";
-import { getMCPTools } from "@/lib/agent/mcp";
-import { MCPToolsData, MCPToolsGrouped } from "@/types/mcp";
 
+/**
+ * Proxy endpoint for MCP tools - forwards to Python backend
+ */
 export async function GET() {
   try {
-    const tools = await getMCPTools();
+    // Get backend URL from environment
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    
+    // Fetch from Python backend
+    const response = await fetch(`${backendUrl}/api/mcp-servers/tools`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
 
-    if (!Array.isArray(tools) || tools.length === 0) {
-      return NextResponse.json({
-        serverGroups: {},
-        totalCount: 0,
-      } as MCPToolsData);
+    if (!response.ok) {
+      throw new Error(`Backend returned ${response.status}: ${response.statusText}`);
     }
 
-    const serverGroups: MCPToolsGrouped = {};
-
+    const data = await response.json();
+    
+    // Transform backend response to match frontend format
+    // Backend returns: { tools: [...], total: N }
+    // Frontend expects: { serverGroups: {...}, totalCount: N }
+    
+    const tools = data.tools || [];
+    const serverGroups: any = {};
+    
     for (const tool of tools) {
-      // Extract server name from tool name (assumes format: "servername__toolname")
-      const toolName = tool.name || "unknown";
-      const parts = toolName.split("__");
-      const serverName = parts.length > 1 ? parts[0] : "default";
-      const cleanToolName = parts.length > 1 ? parts.slice(1).join("__") : toolName;
-
+      const serverName = tool.server || "default";
+      
       if (!serverGroups[serverName]) {
         serverGroups[serverName] = {
           tools: [],
           count: 0,
         };
       }
-
+      
       serverGroups[serverName].tools.push({
-        name: cleanToolName,
-        description: tool.description || undefined,
+        name: tool.name,
+        description: tool.description,
       });
       serverGroups[serverName].count++;
     }
-
+    
     return NextResponse.json({
       serverGroups,
       totalCount: tools.length,
-    } as MCPToolsData);
+    });
   } catch (error) {
-    console.error("Error fetching MCP tools:", error);
+    console.error("Error fetching MCP tools from backend:", error);
     return NextResponse.json(
       {
         error: "Failed to fetch MCP tools",

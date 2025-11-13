@@ -70,6 +70,7 @@ python run.py
 
 ```bash
 cd frontend
+pnpm install
 pnpm dev
 ```
 

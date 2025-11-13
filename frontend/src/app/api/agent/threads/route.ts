@@ -1,85 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Thread } from "@/types/message";
-import prisma from "@/lib/database/prisma";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type ThreadEntity = {
-  id: string;
-  title: string;
-  createdAt: Date;
-  updatedAt: Date;
-};
+/**
+ * Proxy threads requests to Python backend
+ */
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export async function GET() {
-  const dbThreads = await prisma.thread.findMany({ orderBy: { updatedAt: "desc" }, take: 50 });
-  const threads: Thread[] = dbThreads.map((t: ThreadEntity) => ({
-    id: t.id,
-    title: t.title,
-    createdAt: t.createdAt.toISOString(),
-    updatedAt: t.updatedAt.toISOString(),
-  }));
-  return NextResponse.json(threads, { status: 200 });
-}
-
-export async function POST() {
-  const created = await prisma.thread.create({ data: { title: "New thread" } });
-  const thread: Thread = {
-    id: created.id,
-    title: created.title,
-    createdAt: created.createdAt.toISOString(),
-    updatedAt: created.updatedAt.toISOString(),
-  };
-  return NextResponse.json(thread, { status: 201 });
-}
-
-export async function PATCH(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { id, title } = body || {};
-    if (!id || typeof title !== "string") {
-      return NextResponse.json({ error: "id and title required" }, { status: 400 });
-    }
-    const updated = await prisma.thread.update({ where: { id }, data: { title } });
-    return NextResponse.json(
-      {
-        id: updated.id,
-        title: updated.title,
-        createdAt: updated.createdAt.toISOString(),
-        updatedAt: updated.updatedAt.toISOString(),
+    const response = await fetch(`${BACKEND_URL}/api/agent/threads`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
       },
-      { status: 200 },
-    );
-  } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : "Update failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    });
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    console.error("Error proxying to backend:", error);
+    return NextResponse.json({ error: "Failed to fetch threads" }, { status: 500 });
   }
 }
 
-export async function DELETE(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await req.json();
-    const { id } = body || {};
-    if (!id || typeof id !== "string") {
-      return NextResponse.json({ error: "Thread id required" }, { status: 400 });
+    // Try to read body, but handle empty body gracefully
+    let body = null;
+    try {
+      const text = await request.text();
+      if (text) {
+        body = JSON.parse(text);
+      }
+    } catch (e) {
+      // No body or invalid JSON - that's ok
     }
+    
+    // If no body provided, create default thread data
+    const threadData = body || { title: "New Conversation" };
+    
+    const response = await fetch(`${BACKEND_URL}/api/agent/threads`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(threadData),
+    });
 
-    // First check if thread exists
-    const thread = await prisma.thread.findUnique({ where: { id } });
-    if (!thread) {
-      return NextResponse.json({ error: "Thread not found" }, { status: 404 });
-    }
-
-    // Delete the thread from Prisma (metadata)
-    await prisma.thread.delete({ where: { id } });
-
-    // Note: LangGraph checkpoint data will become orphaned but won't affect functionality
-    // The checkpointer will simply not find any thread metadata for this thread_id
-    // Future versions could implement direct checkpoint deletion via SQL if needed
-
-    return NextResponse.json({ success: true }, { status: 200 });
-  } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : "Delete failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    console.error("Error proxying to backend:", error);
+    return NextResponse.json({ error: "Failed to create thread" }, { status: 500 });
   }
 }
