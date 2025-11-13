@@ -19,7 +19,12 @@ export async function GET() {
     });
 
     const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    
+    // Backend returns { threads: [...], total: N }
+    // Frontend expects [...]
+    const threads = data.threads || [];
+    
+    return NextResponse.json(threads, { status: response.status });
   } catch (error) {
     console.error("Error proxying to backend:", error);
     return NextResponse.json({ error: "Failed to fetch threads" }, { status: 500 });

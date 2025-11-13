@@ -21,7 +21,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ threadI
     });
 
     const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    
+    // Backend returns { messages: [...], total: N }
+    // Frontend expects [...]
+    const messages = data.messages || [];
+    
+    return NextResponse.json(messages, { status: response.status });
   } catch (error) {
     console.error("Error proxying to backend:", error);
     return NextResponse.json({ error: "Failed to fetch thread history" }, { status: 500 });

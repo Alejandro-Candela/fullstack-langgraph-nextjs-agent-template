@@ -28,12 +28,20 @@ def create_postgres_checkpointer() -> PostgresSaver:
     if connection_string.startswith("postgresql+asyncpg://"):
         connection_string = connection_string.replace("postgresql+asyncpg://", "postgresql://", 1)
     
+    # Create the checkpointer
+    # from_conn_string returns the checkpointer directly (not a context manager in recent versions)
     checkpointer = PostgresSaver.from_conn_string(connection_string)
     
-    # Setup the checkpointer (creates tables if needed)
-    checkpointer.setup()
+    logger.info(f"PostgreSQL checkpointer created: {type(checkpointer)}")
     
-    logger.info("PostgreSQL checkpointer initialized")
+    # Try to setup if the method exists
+    if hasattr(checkpointer, 'setup') and callable(checkpointer.setup):
+        try:
+            checkpointer.setup()
+            logger.info("PostgreSQL checkpointer setup completed")
+        except Exception as e:
+            logger.warning(f"Checkpointer setup failed (may be auto-setup): {e}")
+    
     return checkpointer
 
 
