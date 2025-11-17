@@ -1,120 +1,95 @@
-import { NextResponse } from "next/server";
-import prisma from "@/lib/database/prisma";
-import { MCPServerType } from "@/types/mcp";
+import { NextResponse, NextRequest } from "next/server";
 
-export async function GET() {
+/**
+ * Proxy all MCP server requests to the Python backend.
+ * This eliminates the need for Prisma logic in the frontend.
+ */
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+export async function GET(request: NextRequest) {
   try {
-    const servers = await prisma.mCPServer.findMany({
-      orderBy: { createdAt: "desc" },
+    const response = await fetch(`${BACKEND_URL}/api/mcp-servers`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
     });
-    return NextResponse.json(servers);
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error("Error fetching MCP servers:", error);
+    console.error("Error proxying to backend:", error);
     return NextResponse.json({ error: "Failed to fetch MCP servers" }, { status: 500 });
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, type, command, args, env, url, headers } = body;
-
-    if (!name || !type) {
-      return NextResponse.json({ error: "Name and type are required" }, { status: 400 });
-    }
-
-    if (type === "stdio" && !command) {
-      return NextResponse.json({ error: "Command is required for stdio servers" }, { status: 400 });
-    }
-
-    if (type === "http" && !url) {
-      return NextResponse.json({ error: "URL is required for http servers" }, { status: 400 });
-    }
-
-    const server = await prisma.mCPServer.create({
-      data: {
-        name,
-        type: type as MCPServerType,
-        command: type === "stdio" ? command : null,
-        args: type === "stdio" ? args : null,
-        env: type === "stdio" ? env : null,
-        url: type === "http" ? url : null,
-        headers: type === "http" ? headers : null,
+    
+    const response = await fetch(`${BACKEND_URL}/api/mcp-servers`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify(body),
     });
 
-    return NextResponse.json(server, { status: 201 });
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error("Error creating MCP server:", error);
-    if ((error as { code?: string })?.code === "P2002") {
-      return NextResponse.json({ error: "Server name already exists" }, { status: 409 });
-    }
+    console.error("Error proxying to backend:", error);
     return NextResponse.json({ error: "Failed to create MCP server" }, { status: 500 });
   }
 }
 
-export async function PATCH(request: Request) {
+export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, name, type, command, args, env, url, headers, enabled } = body;
+    const { id } = body;
 
     if (!id) {
-      return NextResponse.json({ error: "ID is required" }, { status: 400 });
+      return NextResponse.json({ error: "Server ID is required" }, { status: 400 });
     }
 
-    const updateData: Record<string, unknown> = {};
-    if (name !== undefined) updateData.name = name;
-    if (type !== undefined) updateData.type = type;
-    if (enabled !== undefined) updateData.enabled = enabled;
-
-    if (type === "stdio") {
-      if (command !== undefined) updateData.command = command;
-      if (args !== undefined) updateData.args = args;
-      if (env !== undefined) updateData.env = env;
-      updateData.url = null;
-      updateData.headers = null;
-    } else if (type === "http") {
-      if (url !== undefined) updateData.url = url;
-      if (headers !== undefined) updateData.headers = headers;
-      updateData.command = null;
-      updateData.args = null;
-      updateData.env = null;
-    }
-
-    const server = await prisma.mCPServer.update({
-      where: { id },
-      data: updateData,
+    const response = await fetch(`${BACKEND_URL}/api/mcp-servers/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     });
 
-    return NextResponse.json(server);
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error("Error updating MCP server:", error);
-    if ((error as { code?: string })?.code === "P2025") {
-      return NextResponse.json({ error: "Server not found" }, { status: 404 });
-    }
+    console.error("Error proxying to backend:", error);
     return NextResponse.json({ error: "Failed to update MCP server" }, { status: 500 });
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
     if (!id) {
-      return NextResponse.json({ error: "ID is required" }, { status: 400 });
+      return NextResponse.json({ error: "Server ID is required" }, { status: 400 });
     }
 
-    await prisma.mCPServer.delete({
-      where: { id },
+    const response = await fetch(`${BACKEND_URL}/api/mcp-servers/${id}`, {
+      method: "DELETE",
     });
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Error deleting MCP server:", error);
-    if ((error as { code?: string })?.code === "P2025") {
-      return NextResponse.json({ error: "Server not found" }, { status: 404 });
+    if (response.status === 204) {
+      return NextResponse.json({ success: true });
     }
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    console.error("Error proxying to backend:", error);
     return NextResponse.json({ error: "Failed to delete MCP server" }, { status: 500 });
   }
 }

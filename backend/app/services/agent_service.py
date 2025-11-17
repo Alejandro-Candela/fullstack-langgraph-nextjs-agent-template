@@ -85,8 +85,8 @@ async def _ensure_agent(
     if tools and len(tools) > 0:
         mcp_tools = [t for t in mcp_tools if t.name in tools]
     
-    # Get checkpointer
-    checkpointer = get_checkpointer()
+    # Get async checkpointer
+    checkpointer = await get_checkpointer()
     
     # Build agent
     builder = AgentBuilder(
@@ -218,25 +218,30 @@ async def stream_response(
     config = {"configurable": {"thread_id": thread_id}}
     
     try:
-        async for chunk in agent.astream(inputs, config, stream_mode="updates"):
-            if not chunk:
-                continue
+        logger.info(f"Starting agent stream for thread={thread_id}")
+        chunk_num = 0
+        current_message_id = f"msg-{thread_id}-{id(inputs)}"
+        
+        # Use astream_events for token-level streaming
+        async for event in agent.astream_events(inputs, config, version="v2"):
+            chunk_num += 1
             
-            # Handle different chunk formats
-            # LangGraph can return: dict with node updates
-            if isinstance(chunk, dict):
-                # Look for agent node updates
-                if "agent" in chunk:
-                    agent_data = chunk["agent"]
-                    if "messages" in agent_data:
-                        messages = agent_data["messages"]
-                        if not isinstance(messages, list):
-                            messages = [messages]
-                        
-                        for msg in messages:
-                            processed = _process_ai_message(msg)
-                            if processed:
-                                yield processed
+            # Filter for LLM token events
+            if event["event"] == "on_chat_model_stream":
+                chunk = event["data"]["chunk"]
+                if hasattr(chunk, "content") and chunk.content:
+                    # Yield individual tokens as they arrive
+                    # Use the same message ID for all chunks of this response
+                    logger.debug(f"Token chunk {chunk_num}: {chunk.content[:50]}")
+                    yield MessageResponse(
+                        type="ai",
+                        data=AIMessageData(
+                            id=current_message_id,  # Same ID for all chunks
+                            content=chunk.content,
+                        ),
+                    )
+        
+        logger.info(f"Stream completed. Total events: {chunk_num}")
     
     except Exception as e:
         logger.error(f"Error streaming response: {e}", exc_info=True)

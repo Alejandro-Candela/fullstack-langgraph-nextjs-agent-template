@@ -63,9 +63,10 @@ export async function ensureAgent(cfg?: AgentConfigOptions) {
 }
 
 // Named export to explicitly fetch a configured agent.
-export async function getAgent(cfg?: AgentConfigOptions) {
-  return ensureAgent(cfg);
-}
+// DISABLED: Now using Python backend instead of local LangGraph
+// export async function getAgent(cfg?: AgentConfigOptions) {
+//   return ensureAgent(cfg);
+// }
 
-// Eagerly create a default agent at module load using env defaults.
-export const defaultAgent = await ensureAgent();
+// DISABLED: No longer creating local agent - all logic moved to Python backend
+// export const defaultAgent = await ensureAgent();

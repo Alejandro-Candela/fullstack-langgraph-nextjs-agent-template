@@ -74,10 +74,10 @@ export function useChatThread({ threadId }: UseChatThreadOptions): UseChatThread
             // First chunk for this response id: create a new message entry
             if (!currentMessageRef.current || currentMessageRef.current.data.id !== data.id) {
               currentMessageRef.current = messageResponse;
-              queryClient.setQueryData(["messages", threadId], (old: MessageResponse[] = []) => [
-                ...old,
-                currentMessageRef.current!,
-              ]);
+              queryClient.setQueryData(["messages", threadId], (old: MessageResponse[] = []) => {
+                const oldMessages = Array.isArray(old) ? old : [];
+                return [...oldMessages, currentMessageRef.current!];
+              });
             } else {
               // Subsequent chunks: append content if it's a string, otherwise replace
               const currentData = currentMessageRef.current.data as AIMessageData;
@@ -98,12 +98,14 @@ export function useChatThread({ threadId }: UseChatThreadOptions): UseChatThread
                 },
               };
               queryClient.setQueryData(["messages", threadId], (old: MessageResponse[] = []) => {
+                // Ensure old is an array (handle corrupted cache)
+                const oldMessages = Array.isArray(old) ? old : [];
                 // Find the in-flight assistant message by its stable response id
-                const idx = old.findIndex((m) => m.data?.id === currentMessageRef.current!.data.id);
+                const idx = oldMessages.findIndex((m) => m.data?.id === currentMessageRef.current!.data.id);
                 // If it's not in the cache (race or refresh), keep existing state
-                if (idx === -1) return old;
+                if (idx === -1) return oldMessages;
                 // Immutable update so React Query subscribers are notified
-                const clone = [...old];
+                const clone = [...oldMessages];
                 // Replace only the updated message entry with the latest accumulated content
                 clone[idx] = currentMessageRef.current!;
                 return clone;
@@ -139,10 +141,10 @@ export function useChatThread({ threadId }: UseChatThreadOptions): UseChatThread
               type: "error",
               data: { id: `err-${Date.now()}`, content: `⚠️ ${message}` },
             };
-            queryClient.setQueryData(["messages", threadId], (old: MessageResponse[] = []) => [
-              ...old,
-              errorMsg,
-            ]);
+          queryClient.setQueryData(["messages", threadId], (old: MessageResponse[] = []) => {
+            const oldMessages = Array.isArray(old) ? old : [];
+            return [...oldMessages, errorMsg];
+          });
           } finally {
             // Always clean up the stream and flags on error
             setIsSending(false);
@@ -169,10 +171,11 @@ export function useChatThread({ threadId }: UseChatThreadOptions): UseChatThread
       // Optimistic UI: append the user's message immediately
       const tempId = `temp-${Date.now()}`;
       const userMessage: MessageResponse = { type: "human", data: { id: tempId, content: text } };
-      queryClient.setQueryData(["messages", threadId], (old: MessageResponse[] = []) => [
-        ...old,
-        userMessage,
-      ]);
+      queryClient.setQueryData(["messages", threadId], (old: MessageResponse[] = []) => {
+        // Ensure old is an array (handle corrupted cache)
+        const oldMessages = Array.isArray(old) ? old : [];
+        return [...oldMessages, userMessage];
+      });
 
       // Handle the streaming response
       await handleStreamResponse({ threadId, text, opts });

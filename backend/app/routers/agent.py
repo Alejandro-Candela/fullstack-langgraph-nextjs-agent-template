@@ -54,9 +54,12 @@ async def stream_agent_response(
         """Generate SSE events."""
         try:
             # Send initial connection message
-            yield "data: {}\n\n"
+            yield ": connected\n\n"
+            
+            logger.info(f"Starting stream for thread={threadId}, content={content[:50]}...")
             
             # Stream agent responses
+            chunk_count = 0
             async for message_response in stream_response(
                 thread_id=threadId,
                 user_text=content,
@@ -64,8 +67,12 @@ async def stream_agent_response(
             ):
                 # Only forward AI/tool chunks
                 if message_response.type in ["ai", "tool"]:
+                    chunk_count += 1
                     data = json.dumps(message_response.model_dump())
+                    logger.debug(f"Sending chunk {chunk_count}: {data[:100]}...")
                     yield f"data: {data}\n\n"
+            
+            logger.info(f"Stream completed. Sent {chunk_count} chunks.")
             
             # Signal completion
             yield "event: done\ndata: {}\n\n"
@@ -85,6 +92,7 @@ async def stream_agent_response(
             "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
+            "Transfer-Encoding": "chunked",
         },
     )
 

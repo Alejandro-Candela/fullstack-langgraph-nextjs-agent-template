@@ -71,6 +71,29 @@ async def list_mcp_servers(
     return MCPServerListResponse(servers=server_reads, total=total)
 
 
+@router.get("/tools", response_model=MCPToolsResponse, tags=["tools"])
+async def list_mcp_tools():
+    """
+    List all available tools from enabled MCP servers.
+    
+    Returns:
+        List of available tools with server information.
+    """
+    tools = await get_mcp_tools()
+    
+    tool_infos = [
+        MCPToolInfo(
+            name=tool.name,
+            description=tool.description if hasattr(tool, "description") else None,
+            server="unknown",  # TODO: Extract server name if available
+            schema=tool.args if hasattr(tool, "args") else None,
+        )
+        for tool in tools
+    ]
+    
+    return MCPToolsResponse(tools=tool_infos, total=len(tool_infos))
+
+
 @router.get("/{server_id}", response_model=MCPServerRead)
 async def get_mcp_server(
     server_id: str,
@@ -261,27 +284,4 @@ async def delete_mcp_server(
     
     logger.info(f"Deleted MCP server: {server.name}")
     return None
-
-
-@router.get("/mcp-tools", response_model=MCPToolsResponse, tags=["tools"])
-async def list_mcp_tools():
-    """
-    List all available tools from enabled MCP servers.
-    
-    Returns:
-        List of available tools with server information.
-    """
-    tools = await get_mcp_tools()
-    
-    tool_infos = [
-        MCPToolInfo(
-            name=tool.name,
-            description=tool.description if hasattr(tool, "description") else None,
-            server="unknown",  # TODO: Extract server name if available
-            schema=tool.args if hasattr(tool, "args") else None,
-        )
-        for tool in tools
-    ]
-    
-    return MCPToolsResponse(tools=tool_infos, total=len(tool_infos))
 
