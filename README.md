@@ -1,44 +1,44 @@
 # Fullstack LangGraph (Python) + Next.js Agent Template
 
-Template de producción para crear agentes de IA con **LangGraph (Python)** en el backend y **Next.js** en el frontend. Ofrece **memoria persistente**, **streaming en tiempo real**, **gestión de hilos de conversación**, y una **UI moderna** para interacción con el agente.
+Production-ready template for building AI agents with **LangGraph (Python)** on the backend and **Next.js** on the frontend. Features **persistent memory**, **real-time streaming**, **conversation thread management**, and a **modern UI** for agent interaction.
 
 ---
 
-## ✨ Características
+## ✨ Features
 
-- **Orquestación de agentes con LangGraph (Python)**  
-  Grafo de estados, checkpoints y *human‑in‑the‑loop* (interrupciones / reanudaciones) para flujos seguros y auditables.
-- **Streaming en tiempo real (SSE)**  
-  Respuestas token a token y eventos del agente hacia el frontend Next.js.
-- **Memoria persistente e hilos**  
-  Historial por conversación/hilo y reanudación del estado desde checkpoints de LangGraph.
-- **UI moderna con Next.js**  
-  Interfaz de chat con manejo de estados, reconexión y errores.
-- **Preparado para producción**  
-  Variables de entorno, Docker para la base de datos, migraciones y separación clara front/back.
+- **Agent Orchestration with LangGraph (Python)**  
+  State graph, checkpoints, and *human‑in‑the‑loop* (interrupts / resumes) for secure and auditable flows.
+- **Real-time Streaming (SSE)**  
+  Token-by-token responses and agent events streamed to the Next.js frontend.
+- **Persistent Memory & Threads**  
+  History per conversation/thread and state resumption from LangGraph checkpoints.
+- **Modern UI with Next.js**  
+  Chat interface with state management, reconnection, and error handling.
+- **Production Ready**  
+  Environment variables, Docker for the database, migrations, and clear front/back separation.
 
 ---
 
-## 🧱 Arquitectura (alto nivel)
+## 🧱 Architecture (High Level)
 
 ```
 [ Next.js (Frontend) ]  <──SSE/HTTP──>  [ Backend Python (LangGraph) ]  <──>  [ DB / Vector Store ]
-        UI Chat                               Orquestación agente                Persistencia
-   (React / Tailwind)                         Estado + Checkpoints             (PostgreSQL, etc.)
+        Chat UI                               Agent Orchestration                Persistence
+   (React / Tailwind)                         State + Checkpoints             (PostgreSQL, etc.)
 ```
 
 ---
 
-## 📦 Requisitos
+## 📦 Requirements
 
-- **Backend**: Python 3.11+ (o la versión que uses), gestor de dependencias (uv/poetry/pip).  
-- **Frontend**: Node.js 18+ y pnpm (o npm/yarn).  
-- **Base de datos**: Docker para PostgreSQL (o la que definas).  
-- **Proveedores de IA**: Claves de OpenAI / Google (opcional según configuración).
+- **Backend**: Python 3.11+ (or your preferred version), dependency manager (uv/poetry/pip).  
+- **Frontend**: Node.js 18+ and pnpm (or npm/yarn).  
+- **Database**: Docker for PostgreSQL (or your defined DB).  
+- **AI Providers**: OpenAI / Google keys (optional depending on config).
 
 ---
 
-## ⚙️ Configuración de Entorno
+## ⚙️ Environment Configuration
 
 ### Backend (`backend/.env`)
 ```bash
@@ -57,19 +57,25 @@ NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 
 ---
 
-## 🗄️ Base de Datos (Docker)
+## 🗄️ Database (Docker) - **IMPORTANT**
+
+> [!IMPORTANT]
+> You **MUST** start the Docker containers for the database before running the backend. The backend depends on the database to function.
+
 ```bash
+cd backend
 docker compose up -d
 ```
 
 ---
 
-## ▶️ Puesta en Marcha
+## ▶️ Getting Started
 
 ### Backend
 ```bash
 cd backend
-uv sync            # o: pip install -r requirements.txt
+# Ensure Docker is running (see above)
+uv sync            # or: pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
@@ -82,15 +88,15 @@ pnpm dev
 
 ---
 
-## 🧠 Flujo del Agente (LangGraph)
+## 🧠 Agent Flow (LangGraph)
 
-1. Usuario envía input desde la UI.
-2. Grafo LangGraph procesa estado, llama a LLMs/herramientas y emite eventos por SSE.
-3. Frontend Next.js renderiza en tiempo real y permite *human‑in‑the‑loop*.
+1. User sends input from the UI.
+2. LangGraph graph processes state, calls LLMs/tools, and emits events via SSE.
+3. Next.js frontend renders in real-time and enables *human‑in‑the‑loop*.
 
 ---
 
-## 🧩 Estructura del Repositorio
+## 🧩 Repository Structure
 ```
 .
 ├── backend/
@@ -112,7 +118,7 @@ pnpm dev
 
 ---
 
-## 🧪 Comandos de Desarrollo
+## 🧪 Development Commands
 
 **Backend**
 ```bash
@@ -128,23 +134,23 @@ pnpm build
 
 ---
 
-## 🔒 Seguridad y Producción
+## 🔒 Security & Production
 
-- Mantén claves en variables de entorno.
-- Activa CORS explícito.
-- Usa HTTPS y reverse proxy.
-- Persistencia robusta para checkpoints.
-
----
-
-## 🤝 Contribuir
-
-1. Crea rama: `git checkout -b feat/mi-mejora`
-2. Cambios + tests
-3. PR con contexto
+- Keep keys in environment variables.
+- Enable explicit CORS.
+- Use HTTPS and reverse proxy.
+- Robust persistence for checkpoints.
 
 ---
 
-## 📄 Licencia
+## 🤝 Contributing
+
+1. Create branch: `git checkout -b feat/my-improvement`
+2. Changes + tests
+3. PR with context
+
+---
+
+## 📄 License
 
 MIT
